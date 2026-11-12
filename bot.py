@@ -155,28 +155,64 @@ def state(uid):
     with database() as c:
         return c.execute('SELECT mode,topic FROM user_state WHERE uid=?', (uid,)).fetchone()
 
+def telegram_format_line(line):
+    """Render common AI Markdown safely as Telegram-supported HTML."""
+    line = line.rstrip('\r')
+    if re.fullmatch(r'\s*```[^`]*', line):
+        return ''  # Remove fenced-code delimiters, not the code contents.
+    heading = re.match(r'^\s{0,3}#{1,6}\s+(.+)$', line)
+    if heading:
+        line = heading.group(1).strip()
+        is_heading = True
+    else:
+        is_heading = False
+    line = re.sub(r'^\s*[-*+]\s+(?=\S)', '• ', line)
+    # Escape first: AI text cannot inject arbitrary Telegram HTML.
+    escaped = html.escape(line, quote=False)
+    # Protect inline code so asterisks within code are not interpreted.
+    code_spans = []
+    def save_code(match):
+        code_spans.append('<code>' + match.group(1) + '</code>')
+        return f'\uE000{len(code_spans)-1}\uE001'
+    escaped = re.sub(r'`([^`\n]+)`', save_code, escaped)
+    escaped = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', escaped)
+    escaped = re.sub(r'(?<!\*)\*([^*\n]+)\*(?!\*)', r'<i>\1</i>', escaped)
+    escaped = re.sub(r'(?<!_)_([^_\n]+)_(?!_)', r'<i>\1</i>', escaped)
+    for i, value in enumerate(code_spans):
+        escaped = escaped.replace(f'\uE000{i}\uE001', value)
+    if is_heading:
+        escaped = '<b>' + escaped + '</b>'
+    return escaped
+
+
 def telegram_format(text):
-    """Safely render AI-generated **bold** in Telegram without exposing HTML."""
-    escaped = html.escape(str(text), quote=False)
-    return re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', escaped, flags=re.DOTALL)
+    """Convert common Markdown to Telegram HTML with each line self-contained."""
+    return '\n'.join(telegram_format_line(line) for line in str(text).split('\n'))
+
 
 async def send_text(chat, text, markup=None):
-    text = str(text)
-    # Split long responses at line boundaries when possible.
+    """Send formatted messages; never cut an HTML tag across Telegram chunks."""
+    lines = str(text).split('\n')
     chunks = []
-    while text:
-        if len(text) <= 3500:
-            chunks.append(text)
-            break
-        boundary = text.rfind('\n', 0, 3500)
-        if boundary < 1750:
-            boundary = 3500
-        chunks.append(text[:boundary])
-        text = text[boundary:]
-    if not chunks:
-        chunks = [' ']
+    current = ''
+    for raw_line in lines:
+        # Split unusually long source lines BEFORE adding HTML tags.
+        while len(raw_line) > 2900:
+            head, raw_line = raw_line[:2900], raw_line[2900:]
+            fragment = telegram_format_line(head)
+            if current:
+                chunks.append(current)
+                current = ''
+            chunks.append(fragment)
+        formatted = telegram_format_line(raw_line)
+        if len(current) + len(formatted) + 1 > 3500 and current:
+            chunks.append(current)
+            current = ''
+        current = (current + '\n' if current else '') + formatted
+    if current or not chunks:
+        chunks.append(current or ' ')
     for i, part in enumerate(chunks):
-        await chat.send_message(telegram_format(part), parse_mode='HTML',
+        await chat.send_message(part or ' ', parse_mode='HTML',
                                 reply_markup=markup if i == len(chunks)-1 else None)
 
 async def show_question(uid, chat):
