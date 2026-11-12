@@ -1,4 +1,4 @@
-   """BIOMED AI: independent Telegram CABT study assistant.
+"""BIOMED AI: independent Telegram CABT study assistant.
 Original AI-generated questions based on the AAMI CABT public content outline.
 Not affiliated with or endorsed by AAMI. No official exam questions.
 """
