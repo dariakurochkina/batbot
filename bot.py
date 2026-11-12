@@ -21,6 +21,9 @@ from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandle
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 LOG = logging.getLogger('biomed-ai')
+# Avoid printing Telegram API URLs, which contain the bot token.
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('telegram').setLevel(logging.WARNING)
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '').strip()
 OPENAI_KEY = os.getenv('OPENAI_API_KEY', '').strip()
 MODEL = os.getenv('OPENAI_MODEL', 'gpt-4.1-mini').strip()
@@ -288,8 +291,23 @@ async def tutor(uid, chat, question):
         LOG.exception('Tutor failed')
         await send_text(chat, 'AI tutor is unavailable. Check your OpenAI API key and billing.', MAIN)
 
+async def log_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Log metadata only, never message content or API credentials."""
+    LOG.info('Incoming Telegram update: id=%s kind=%s', update.update_id,
+             'message' if update.effective_message else 'callback/other')
+
+
+async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.effective_message.reply_text('✅ BIOMED AI is online. Telegram commands work. Version: diagnostic-2')
+
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    LOG.error('Unhandled Telegram error: %s', context.error, exc_info=context.error)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
+    LOG.info('Start command received from user ID %s', uid)
     set_state(uid, '')
     await send_text(update.effective_chat, '👋 Welcome to BIOMED AI!\n\nStudy for the AAMI CABT exam with original practice questions, focused lessons, unlimited bank expansion, and an AI tutor.\n\nNo placement test required. Choose where to start.\n\nNot affiliated with AAMI.', MAIN)
 
@@ -417,13 +435,17 @@ def main():
     with database():
         pass
     app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(MessageHandler(filters.ALL, log_update), group=-1)
     app.add_handler(CommandHandler('start', start))
+    app.add_handler(CommandHandler('ping', ping))
     app.add_handler(CommandHandler('id', id_command))
     app.add_handler(CommandHandler('resume', resume))
     app.add_handler(CommandHandler('seed', seed_command))
     app.add_handler(CallbackQueryHandler(callbacks))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, messages))
-    app.run_polling(drop_pending_updates=True)
+    app.add_error_handler(error_handler)
+    LOG.info('BIOMED AI diagnostic-2: starting Telegram polling')
+    app.run_polling(drop_pending_updates=False)
 
 if __name__ == '__main__':
     main()
