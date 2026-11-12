@@ -9,7 +9,7 @@ An independent study companion for the **AAMI Certified Associate in Biomedical 
 - Questions stored in SQLite; `/seed 300`, `/seed 1000`, etc. expands the reusable bank (each generation uses billed OpenAI API requests).
 - Detailed feedback after each practice answer; mock answers remain hidden until completion.
 - AI mini-lessons, ask-anything tutor, mistake review, weak domains, and performance by domain.
-- Private to Telegram user IDs you explicitly permit.
+- Open to anyone who finds the bot; progress is tracked separately for each Telegram user.
 
 ## Step-by-step setup
 
@@ -21,11 +21,7 @@ An independent study companion for the **AAMI Certified Associate in Biomedical 
 4. Choose a unique username ending in `bot`, such as `biomed_fahim_study_bot` if available.
 5. Copy the new **bot token** privately. Do not paste it into chat or commit it to GitHub.
 
-### 2. Get Fahim's Telegram numeric ID
-
-Ask Fahim to message **@userinfobot** or another trusted Telegram user-ID bot and send you **only the numeric user ID**, not a password or token. Alternatively, after deployment, he can send `/id` to your bot, but the bot must have an initial allowed ID to start; add your own numeric ID first, then add his in Railway.
-
-### 3. Obtain an OpenAI API key
+### 2. Obtain an OpenAI API key
 
 1. Open https://platform.openai.com/api-keys.
 2. Create an API key in the appropriate project.
@@ -35,7 +31,7 @@ Ask Fahim to message **@userinfobot** or another trusted Telegram user-ID bot an
 
 A separate key for this bot is recommended, so API usage and spending can be tracked separately. Set billing limits / alerts in OpenAI's platform.
 
-### 4. Create a new GitHub repository
+### 3. Create a new GitHub repository
 
 1. Go to https://github.com/new.
 2. Name it `biomed-ai-cabt`, and choose **Private**.
@@ -43,7 +39,7 @@ A separate key for this bot is recommended, so API usage and spending can be tra
 4. Upload `bot.py`, `requirements.txt`, `Procfile`, and `README.md` from this folder. **Do not upload .env with actual secrets.**
 5. Commit the files.
 
-### 5. Deploy as a new Railway project
+### 4. Deploy as a new Railway project
 
 1. Open https://railway.com/dashboard and select **New Project** → **Deploy from GitHub Repo**.
 2. Authorize GitHub if prompted and select `biomed-ai-cabt`.
@@ -55,7 +51,6 @@ A separate key for this bot is recommended, so API usage and spending can be tra
    | `TELEGRAM_BOT_TOKEN` | Your **new** BotFather token |
    | `OPENAI_API_KEY` | Your OpenAI API key |
    | `OPENAI_MODEL` | `gpt-4.1-mini` |
-   | `ALLOWED_USER_IDS` | Fahim's numeric Telegram user ID, e.g. `123456789`. For two people, comma-separate IDs. |
    | `DATABASE_PATH` | `/data/biomed.sqlite` (after attaching a persistent Railway volume at `/data`) |
 
 5. **Attach a Railway Volume to the bot service, mounted at `/data`**, before starting to accumulate questions. This is essential for retaining the question bank, attempts, and progress across redeploys. If you cannot attach a volume yet, omit `DATABASE_PATH` temporarily; data then live on ephemeral disk and may disappear when redeployed.
@@ -63,7 +58,7 @@ A separate key for this bot is recommended, so API usage and spending can be tra
 
 **Only one instance/replica of the polling bot should run at a time** for a given Telegram token.
 
-### 6. Use it on Telegram
+### 5. Use it on Telegram
 
 1. Open your new bot and send `/start`.
 2. Press **📚 Study a Topic** for mini-lessons or **🧠 Quick Quiz** to begin immediately.
@@ -74,11 +69,12 @@ A separate key for this bot is recommended, so API usage and spending can be tra
 
 ## Troubleshooting
 
-- **No response**: check Railway **Deploy Logs** and the Telegram token; verify the service is running, one instance only, and `ALLOWED_USER_IDS` is correct.
-- **Access restricted**: copy the numeric ID shown in the error into `ALLOWED_USER_IDS` (comma-separated for multiple users), then redeploy.
+- **No response**: check Railway **Deploy Logs** and the Telegram token; verify the service is running, one instance only,.
 - **OpenAI error / no questions**: verify `OPENAI_API_KEY`, API credit/billing, model access, and Railway logs.
 - **Data disappears after deploy**: attach a persistent Railway Volume mounted at `/data` and set `DATABASE_PATH=/data/biomed.sqlite`.
 - **Large seed runs cost money**: questions are generated with paid API calls. Start with `/seed 300` and monitor consumption. Generating a large bank can take a while; allow it to complete without starting another seed run.
+
+**Public access and costs:** Anyone who finds the bot can use it, including the AI tutor and `/seed` command. Usage can incur OpenAI charges. Set spending alerts and monitor the API project.
 
 ## Safety and quality
 

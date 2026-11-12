@@ -25,7 +25,6 @@ TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '').strip()
 OPENAI_KEY = os.getenv('OPENAI_API_KEY', '').strip()
 MODEL = os.getenv('OPENAI_MODEL', 'gpt-4.1-mini').strip()
 DB_PATH = os.getenv('DATABASE_PATH', '/data/biomed.sqlite' if Path('/data').is_dir() else 'biomed.sqlite')
-ALLOWED = {int(s) for s in re.split(r'[\s,]+', os.getenv('ALLOWED_USER_IDS', '')) if s.isdigit()}
 
 # Official AAMI CABT 2026 content outline percentages (approximate).
 DOMAINS = {
@@ -56,9 +55,6 @@ def database():
     c.execute('CREATE TABLE IF NOT EXISTS user_state (uid INTEGER PRIMARY KEY, mode TEXT, topic TEXT)')
     c.commit()
     return c
-
-def allowed(uid):
-    return uid in ALLOWED
 
 def keyboard(rows):
     return Markup([[Button(label, callback_data=key) for label, key in row] for row in rows])
@@ -294,8 +290,6 @@ async def tutor(uid, chat, question):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
-    if not allowed(uid):
-        return await update.effective_message.reply_text(f'Your Telegram user ID is {uid}. Access is restricted. Ask the bot owner to add this ID to ALLOWED_USER_IDS in Railway.')
     set_state(uid, '')
     await send_text(update.effective_chat, '👋 Welcome to BIOMED AI!\n\nStudy for the AAMI CABT exam with original practice questions, focused lessons, unlimited bank expansion, and an AI tutor.\n\nNo placement test required. Choose where to start.\n\nNot affiliated with AAMI.', MAIN)
 
@@ -303,8 +297,6 @@ async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text(f'Your Telegram user ID: {update.effective_user.id}')
 
 async def resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not allowed(update.effective_user.id):
-        return
     await show_question(update.effective_user.id, update.effective_chat)
 
 async def seed(uid, chat, target):
@@ -340,8 +332,6 @@ async def seed(uid, chat, target):
 
 async def seed_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
-    if not allowed(uid):
-        return
     try:
         target = int(context.args[0]) if context.args else 300
     except ValueError:
@@ -363,8 +353,6 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await q.answer()
     uid = q.from_user.id
     chat = q.message.chat
-    if not allowed(uid):
-        return await send_text(chat, 'Access restricted.')
     key = q.data
     try:
         if key == 'home':
@@ -418,8 +406,6 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
-    if not allowed(uid):
-        return await start(update, context)
     current = state(uid)
     if current and current['mode'] == 'tutor':
         return await tutor(uid, update.effective_chat, update.message.text[:2000])
@@ -428,8 +414,6 @@ async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     if not TOKEN:
         raise RuntimeError('TELEGRAM_BOT_TOKEN missing')
-    if not ALLOWED:
-        raise RuntimeError('ALLOWED_USER_IDS missing. Add Fahim’s Telegram numeric user ID in Railway Variables.')
     with database():
         pass
     app = ApplicationBuilder().token(TOKEN).build()
